@@ -1,0 +1,64 @@
+name: MDK
+
+on:
+  push:
+    branches: [main]
+    tags: ['mdk/*']
+  workflow_dispatch:
+    inputs:
+      flavors:
+        description: 'Flavors to build (space separated)'
+        default: 'java java-mixin'
+
+concurrency:
+  group: mdk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: package ${{ matrix.flavor }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # keep in sync with stacks/unimined/flavors and the table in README.md
+        flavor: [java, java-mixin]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - uses: gradle/actions/setup-gradle@v3
+
+      - name: Package and build ${{ matrix.flavor }}
+        run: ./tool/package-flavor.sh ${{ matrix.flavor }} --build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mdk-${{ matrix.flavor }}
+          path: build/zips/mdk-${{ matrix.flavor }}.zip
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/mdk/')
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: zips
+          merge-multiple: true
+
+      - uses: ncipollo/release-action@v1
+        with:
+          artifacts: 'zips/*.zip'
+          tag: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          makeLatest: true
+          allowUpdates: true
+          token: ${{ secrets.GITHUB_TOKEN }}
