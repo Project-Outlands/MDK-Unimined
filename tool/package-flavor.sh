@@ -14,14 +14,20 @@
 # leftovers.
 set -euo pipefail
 
-flavor=${1:?usage: package-flavor.sh <flavor> [--build] [out-dir]}
+flavor=${1:?usage: package-flavor.sh <flavor> [--build] [--loader <version>] [out-dir]}
 shift
 build=0
-if [ "${1:-}" = "--build" ]; then
-    build=1
-    shift
-fi
-out=${1:-build/zips}
+loader_override=""
+out=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --build) build=1; shift ;;
+        # Build the kit against another loader release than the pinned one (used by the compat workflow).
+        --loader) loader_override=${2:?--loader needs a version}; shift 2 ;;
+        *) out=$1; shift ;;
+    esac
+done
+out=${out:-build/zips}
 
 root=$(cd "$(dirname "$0")/.." && pwd)
 stack=$root/stacks/unimined
@@ -64,6 +70,14 @@ fi
 cp "$root/gradlew" "$root/gradlew.bat" "$work"/
 mkdir -p "$work/gradle"
 cp -a "$root/gradle/wrapper" "$work/gradle/"
+
+if [ -n "$loader_override" ]; then
+    sed -i 's/^\( *\)loader ".*"$/\1loader "'"$loader_override"'"/' "$work/build.gradle"
+    grep -q "loader \"$loader_override\"" "$work/build.gradle" || {
+        echo "could not set loader $loader_override in $work/build.gradle" >&2
+        exit 1
+    }
+fi
 
 loader_version=$(sed -n 's/^ *loader "\(.*\)"$/\1/p' "$work/build.gradle" | head -1)
 commit=$(git -C "$root" rev-parse --short HEAD 2>/dev/null || echo unknown)

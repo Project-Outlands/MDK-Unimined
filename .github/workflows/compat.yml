@@ -1,0 +1,83 @@
+name: Compat
+
+# Guards the kit against the loader moving on:
+#
+#   pin    the loader version the canonical tree pins must be the newest published one, so a release that nobody
+#          bumped the kit for shows up here instead of in a user's workspace
+#   build  every flavor is assembled and built against that newest release, which is what a fresh download does
+#
+# Nightly and on demand; the MDK workflow already builds the pinned versions on every push.
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: compat
+  cancel-in-progress: true
+
+jobs:
+  latest:
+    name: newest loader
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+    steps:
+      - id: resolve
+        env:
+          METADATA: https://maven.outlands.top/releases/top/outlands/outlands/maven-metadata.xml
+        run: |
+          set -euo pipefail
+          xml=$(curl -sS --max-time 30 --retry 3 --retry-delay 2 "$METADATA")
+          version=$(printf '%s' "$xml" | grep -oP '(?<=<release>)[^<]+' || true)
+          [ -n "$version" ] || version=$(printf '%s' "$xml" | grep -oP '(?<=<latest>)[^<]+' || true)
+          [ -n "$version" ] || version=$(printf '%s' "$xml" | grep -oP '(?<=<version>)[^<]+' | tail -1)
+          [ -n "$version" ] || { echo "::error::could not read a version from $METADATA"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "newest published loader: $version"
+
+  pin:
+    name: pin is current
+    needs: latest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          LATEST: ${{ needs.latest.outputs.version }}
+        run: |
+          set -euo pipefail
+          pinned=$(sed -n 's/^ *loader "\(.*\)"$/\1/p' stacks/unimined/build.gradle | head -1)
+          echo "pinned: $pinned, newest: $LATEST"
+          if [ "$pinned" != "$LATEST" ]; then
+            echo "::error::the kit pins $pinned, but $LATEST is the newest release; bump stacks/unimined/build.gradle and cut a mdk/<version> tag"
+            exit 1
+          fi
+
+  build:
+    name: build ${{ matrix.flavor }}
+    needs: latest
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # every overlay under stacks/unimined/flavors, plus the canonical tree ('java') itself
+        flavor: [java, java-mixin]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - uses: gradle/actions/setup-gradle@v3
+
+      - name: Build ${{ matrix.flavor }} against ${{ needs.latest.outputs.version }}
+        run: ./tool/package-flavor.sh ${{ matrix.flavor }} --build --loader ${{ needs.latest.outputs.version }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: compat-${{ matrix.flavor }}
+          path: build/zips/mdk-${{ matrix.flavor }}.zip
+          if-no-files-found: error
