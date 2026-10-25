@@ -1,6 +1,19 @@
 repositories {
     // Other repositories described by default:
     // CleanroomMC: https://maven.cleanroommc.com
+    //
+    // Central artifacts come from Aliyun's mirror and everything else from the jsdu mirror that also backs
+    // repo.cleanroommc.com (forge, mcp, cleanroom's own artifacts, Outlands' releases - all of it is proxied there
+    // and it is the fast path from China). Both are moved to the front after this block, because the Unimined plugin
+    // appends its own repositories while `unimined.minecraft {}` is evaluated and would otherwise win.
+    maven {
+        name = 'CentralMirror'
+        url = 'https://maven.aliyun.com/repository/central/'
+    }
+    maven {
+        name = 'OutlandsMirror'
+        url = 'https://nexus.jsdu.cn/repository/'
+    }
     maven {
         name = 'CurseMaven'
         url = 'https://cursemaven.com'
@@ -15,6 +28,13 @@ repositories {
     }
     mavenCentral()
     mavenLocal() // Must be last for caching to work
+
+    // Repository order is declaration order in Gradle, and the mirrors are declared before the plugin adds its own.
+    ['CentralMirror', 'OutlandsMirror'].reverseEach { name ->
+        def mirror = repositories.findByName(name)
+        repositories.remove(mirror)
+        repositories.addFirst(mirror)
+    }
 }
 
 dependencies {

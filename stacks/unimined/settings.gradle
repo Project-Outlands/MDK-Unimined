@@ -1,5 +1,11 @@
 pluginManagement {
     repositories {
+        // Same mirrors as the project repositories (see gradle/scripts/dependencies.gradle): the plugin itself and the
+        // gradle plugin portal artifacts are proxied by the jsdu mirror.
+        maven {
+            name = 'OutlandsMirror'
+            url = 'https://nexus.jsdu.cn/repository/'
+        }
         maven {
             name = 'Outlands'
             url = 'https://maven.outlands.top/releases/'
