@@ -9,15 +9,14 @@ self contained Gradle project, not a branch to check out.
 |---|---|
 | `mdk-java.zip` | Java example mod |
 | `mdk-java-mixin.zip` | Java + mixin (loading plugin, config plugin, two mixin examples) |
-| `mdk-kotlin.zip` | Kotlin example mod |
-| `mdk-scala.zip` | Scala example mod |
 
-Java and Kotlin/Scala do not mix in one kit on purpose: the language decides the whole source tree, while everything
-else (shadow, access transformers, publishing) stays a `gradle/scripts/*.gradle` file you can edit or delete.
+Mixin ships only as its own kit: it is not a switch on the example, it changes the source shape (loading plugin,
+config plugin, mixin json) and adds four lines of build wiring. Wiring it into another language's project is a
+source-tree decision, so the overlay is readable: copy `stacks/unimined/flavors/mixin/files/src/main/java/**` and run
+its `patch.sh` against your project (four anchored edits to `build.gradle` / `gradle.properties`).
 
-Mixin is only shipped for Java. If you are on Kotlin or Scala you are expected to be able to wire it yourself: copy
-`stacks/unimined/flavors/mixin/files/src/main/java/**` and run its `patch.sh` against your project (it applies four
-anchored edits to `build.gradle` / `gradle.properties`).
+Everything else (shadow, access transformers, publishing) stays a `gradle/scripts/*.gradle` file you can edit or
+delete, so a kit is a starting point, not a framework.
 
 ## Layout
 

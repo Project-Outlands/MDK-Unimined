@@ -2,8 +2,8 @@
 
 Template for a 1.12.2 Outlands mod, built on [Unimined](https://github.com/Project-Outlands/Unimined).
 
-This kit is one flavor: **JAVA** (or the mixin variant, if your zip is named `mdk-java-mixin.zip`). Kotlin and Scala
-live in their own kits — the language decides the whole source tree, so mixing them in one project only adds noise.
+This kit is the plain **Java** one; the mixin variant is the same project plus a loading plugin, a config plugin and
+two example mixins (your zip is called `mdk-java-mixin.zip` in that case).
 
 `mdk.properties` records which kit this is, the loader version it pins, and the commit it was cut from. Quote it in a
 bug report.
