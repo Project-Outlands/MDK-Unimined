@@ -61,20 +61,21 @@ Run `genSources` task in gradle. If it didn't work, run again until a file with 
 
 If you want to `find usage` from vanilla like RFG, just change the scope in IntelliJ settings.
 
+### Publishing
+`gradle/scripts/publishing.gradle` publishes the jar to the maven you configure in `gradle.properties`
+(`publish_to_maven`, `maven_name`, `maven_url`, credentials from `~/.gradle/gradle.properties` or the environment):
+
+```bash
+./gradlew publish
+```
+
+CurseForge/Modrinth uploads and GitHub releases are left to you on purpose: every author wants different
+metadata, and a workflow you did not write is a workflow you cannot debug. The kit ships what is reusable.
+
 ### GitHub Action
-This template comes with three workflows.
-
-`build.yml` will build and upload artifact for every commit. Useful when you want to provide test builds for debugging.
-
-`release.yml` will make a GitHub release if you pushed a git tag.
-
-`release-to-cf-mr.yml` can publish your mod to CurseForge and/or Modrinth.
-
-You need to fill in your project IDs and configure your tokens in GitHub repository first.
-
-By default, you will need to manually trigger the workflow in web page, but you can also enable tag triggering by merging the third yml into `release.yml`.
+`build.yml` builds and uploads a jar artifact for every commit, which is enough to hand out test builds.
+A tag-triggered release workflow and a CurseForge/Modrinth publisher were part of the original Cleanroom
+template - copy them from there if you want them, they need your project ids and tokens.
 
 ### Credit
 Thanks @Karnatour for fixing shadow plugin
-
-Thanks @ghostflyby for making kotlin branch
