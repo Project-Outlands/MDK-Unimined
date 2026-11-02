@@ -66,7 +66,15 @@ if [ "$flavor" != "java" ]; then
     fi
 fi
 
-# Every zip is a self contained project: the wrapper lives at the repository root so all flavors share one copy.
+# Every zip is a self contained project. The wrapper lives at the repository root; the canonical tree keeps the same
+# distribution so an IDE opening it does not download one of its own, and packaging copies the root files over it. A
+# version bumped in one place only would make those two disagree, which is what this checks.
+for file in gradle-wrapper.jar gradle-wrapper.properties; do
+    if ! cmp -s "$root/gradle/wrapper/$file" "$stack/gradle/wrapper/$file"; then
+        echo "$stack/gradle/wrapper/$file differs from the root wrapper: bump both, or drop the copy from the stack" >&2
+        exit 1
+    fi
+done
 cp "$root/gradlew" "$root/gradlew.bat" "$work"/
 mkdir -p "$work/gradle"
 cp -a "$root/gradle/wrapper" "$work/gradle/"

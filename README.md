@@ -24,8 +24,12 @@ delete, so a kit is a starting point, not a framework.
 stacks/unimined/            canonical tree = the java kit, directly buildable
 stacks/unimined/flavors/    per flavor: files/ (new sources) + patch.sh (anchored edits) + remove.txt (deletions)
 tool/package-flavor.sh      assembles a flavor, optionally builds it, and zips it
-gradle/wrapper/             one wrapper, injected into every kit
+gradle/wrapper/             the wrapper every kit ships; the canonical tree carries the same files
 ```
+
+The canonical tree holds a copy of `gradle/wrapper/` (not of `gradlew`, which packaging injects) so that opening
+`stacks/unimined` in an IDE uses the kit's Gradle instead of downloading whatever the IDE defaults to. Packaging copies
+the root wrapper over it and refuses to start if the two disagree, so a version bump cannot land in only one of them.
 
 A kit is never stored assembled: `tool/package-flavor.sh <flavor> --build` copies the canonical tree, applies the
 overlay, runs `./gradlew build` **in the copy** and zips the result. If a flavor stops compiling, packaging fails
