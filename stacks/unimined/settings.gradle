@@ -1,13 +1,7 @@
 pluginManagement {
     repositories {
-        // The locally published plugin (publishToMavenLocal) has to win over every mirror below, otherwise a local
-        // build of Unimined is silently ignored in favour of whatever the mirror still has.
-        mavenLocal()
-        // Same mirrors as the project repositories (see gradle/scripts/dependencies.gradle): the plugin itself and the
-        // gradle plugin portal artifacts are proxied by the jsdu mirror.
-        // The mirror proxies the Outlands, Arcseekers, Forge and MCP hosts, and stays first so a plugin lookup does not
-        // go to a slow origin. Unimined adds the same mirror to the project's repositories itself (see
-        // OutlandsMinecraftTransformer.DEFAULT_MIRROR), which is what makes build-time downloads use it too.
+        // Proxies the hosts below, so a plugin lookup does not wait on a slow origin. Unimined adds the same mirror to
+        // the project's repositories itself, which is what makes build-time downloads use it too.
         maven {
             name = 'OutlandsMirror'
             url = 'https://nexus.jsdu.cn/repository/'

@@ -28,7 +28,9 @@ No more `rfg.deobf()` or `fg.deobf`. You **MUST** add mods by using `modImplemen
 Use `modLibrary` for libs/mods that you don't want to remap.
 
 ### Non-Mod Dependencies
-Two new configuration types `contain` and `shadow` are available, check more details in `dependencies.gradle`.
+`shadow` bundles a dependency into the shadow jar. For a jar that ships *inside* this one, wrap the declaration in
+`contained(...)` - Unimined then copies it to `META-INF/libraries` and states it in `mcmod.info`. See
+`dependencies.gradle`.
 
 ### gradle.properties
 Edit gradle.properties and set your modid, mod version, mod name, package, etc.
@@ -55,6 +57,9 @@ You can find its template under `src/main/java-templates`.
 You **MUST** write AT file in MCP name. It will be remapped back to SRG name in artifact jar.
 
 Rename AT file name to your modid before using it. There's an example entry in AT file, remove it if you want to use AT.
+
+The file's path is relative to `META-INF/`: that is where the loader opens it, and it is what the `mcmod.info` jar
+section declares. `access_transformer_locations` states it; a development run applies the first location only.
 
 ### Vanilla Source Code with Comments
 Run `genSources` task in gradle. If it didn't work, run again until a file with `-sources.jar` suffix appeared.

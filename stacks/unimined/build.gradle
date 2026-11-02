@@ -12,8 +12,14 @@ import org.jetbrains.gradle.ext.Gradle
 
 ext {
     //noinspection GroovyAssignabilityCheck
+    // Where an access transformer sits inside the jar, relative to META-INF/: the loader opens exactly that path, and
+    // the jar section below declares the same string. The file itself lives at the same path under src/main/resources.
     access_transformer_locations = "${mod_id}_at.cfg"
 }
+
+// The property has always been allowed to name more than one file, and both the jar section and the processResources
+// placement have to agree on the list, so it is split once, here.
+def accessTransformerLocations = access_transformer_locations.trim().split('\\s+').findAll { !it.isBlank() }
 
 version = mod_version
 group = root_package
@@ -35,8 +41,6 @@ java {
 }
 
 configurations {
-    contain
-    implementation.extendsFrom(contain)
     modCompileOnly
     compileOnly.extendsFrom(modCompileOnly)
     modRuntimeOnly
@@ -55,11 +59,13 @@ unimined.minecraft {
 
     outlands {
         if (use_access_transformer.toBoolean()) {
-            accessTransformer "${rootProject.projectDir}/src/main/resources/$access_transformer_locations"
+            // A development run applies one access transformer - Unimined rewrites Minecraft against it - while the jar
+            // can carry several. A second location therefore widens classes only in the built mod.
+            accessTransformer "src/main/resources/${accessTransformerLocations[0]}"
         }
         // The jar-level facts live in the mcmod.info `jar` section, not in the manifest. Every value here comes from a
-        // build property, which is exactly why it belongs to the build: hand-maintaining it in a metadata file would
-        // mean two places to keep in step.
+        // build property, which is why it belongs to the build: keeping it in a metadata file would mean two places to
+        // keep in step.
         jarMetadata {
             license mod_license
             if (is_coremod.toBoolean()) {
@@ -67,7 +73,7 @@ unimined.minecraft {
                 alsoMod coremod_includes_mod.toBoolean()
             }
             if (use_access_transformer.toBoolean()) {
-                at access_transformer_locations
+                at(*accessTransformerLocations)
             }
         }
         loader "2026.11.02-2"
@@ -113,7 +119,14 @@ dependencies {
 apply from: 'gradle/scripts/dependencies.gradle'
 
 processResources {
-    rename '(.+_at.cfg)', 'META-INF/$1'
+    // The loader opens an access transformer as `META-INF/<declared path>`, so the declared location decides where the
+    // file lands: a name pattern (`_at.cfg`) would stop matching the moment someone sets a custom location, and the jar
+    // would then declare an entry it does not contain.
+    if (use_access_transformer.toBoolean()) {
+        accessTransformerLocations.each { location ->
+            filesMatching(location) { it.path = "META-INF/${it.path}" }
+        }
+    }
 }
 
 sourceSets {
@@ -184,24 +197,8 @@ compileJava {
 jar {
     archiveClassifier = 'dev'
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    doFirst {
-        manifest {
-            // Only ModType is left: it has no equivalent in the jar section, and the loader still reads it to decide
-            // whether a jar belongs to this loader at all. Everything else moved to the metadata below.
-            attributes('ModType': 'CRL')
-        }
-    }
     finalizedBy(tasks.named(remapTaskName).get())
 }
-
-// `contain` stays the author's surface, but the bundling itself belongs to Unimined: it resolves each declaration
-// against the classpath, copies it to META-INF/libraries and states it in the jar section. Marking the same
-// dependencies is all this needs - an independent resolution would be free to pick a different version than the one
-// the project compiles against.
-afterEvaluate {
-    configurations.contain.dependencies.each { project.contained(it) }
-}
-
 
 shadowJar {
     //noinspection GroovyAssignabilityCheck,GroovyAccessibility
