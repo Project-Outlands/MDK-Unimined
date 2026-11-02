@@ -43,6 +43,12 @@ dependencies {
     }
     modDevImplementation 'mezz:jei:4.35.0:dev' // Use for mod Mixin example
 
+    // `contain` keeps its meaning (a jar that ships inside this one) but the build does the packaging now: Unimined
+    // copies it to META-INF/libraries and states it in the mcmod.info jar section. Note that a `contain`-ed jar is a
+    // library, not a mod - use `contained(...)` in a mod configuration when the bundled jar has to be discovered.
+    contain 'com.google.code.gson:gson:2.13.2'
+
+
     // Example - Dependency descriptor:
     // 'com.google.code.gson:gson:2.8.6' << group: com.google.code.gson, name:gson, version:2.8.6
     // 'group:name:version:classifier' where classifier is optional

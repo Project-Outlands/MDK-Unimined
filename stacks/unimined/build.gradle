@@ -4,7 +4,7 @@ plugins {
     id 'maven-publish'
     id 'com.gradleup.shadow' version '9.6.1'
     id 'org.jetbrains.gradle.plugin.idea-ext' version '1.4.1'
-    id 'top.outlands.unimined' version '1.4.46'
+    id 'top.outlands.unimined' version '1.4.47'
     id 'net.kyori.blossom' version '2.2.0'
 }
 
@@ -57,7 +57,20 @@ unimined.minecraft {
         if (use_access_transformer.toBoolean()) {
             accessTransformer "${rootProject.projectDir}/src/main/resources/$access_transformer_locations"
         }
-        loader "2026.10.25"
+        // The jar-level facts live in the mcmod.info `jar` section, not in the manifest. Every value here comes from a
+        // build property, which is exactly why it belongs to the build: hand-maintaining it in a metadata file would
+        // mean two places to keep in step.
+        jarMetadata {
+            license mod_license
+            if (is_coremod.toBoolean()) {
+                coreMod coremod_plugin_class_name
+                alsoMod coremod_includes_mod.toBoolean()
+            }
+            if (use_access_transformer.toBoolean()) {
+                at access_transformer_locations
+            }
+        }
+        loader "2026.11.02-2"
         runs.all {
             args += ['--username', minecraft_username]
             def extraArgs = extra_jvm_args
@@ -171,32 +184,22 @@ compileJava {
 jar {
     archiveClassifier = 'dev'
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    if (configurations.contain.size() > 0) {
-        into('/') {
-            from configurations.contain
-        }
-    }
     doFirst {
         manifest {
-            def attribute_map = [:]
-            attribute_map['ModType'] = "CRL"
-            if (configurations.contain.size() > 0) {
-                attribute_map['ContainedDeps'] = configurations.contain.collect { it.name }.join(' ')
-                attribute_map['NonModDeps'] = true
-            }
-            if (is_coremod.toBoolean()) {
-                attribute_map['FMLCorePlugin'] = coremod_plugin_class_name
-                if (coremod_includes_mod.toBoolean()) {
-                    attribute_map['FMLCorePluginContainsFMLMod'] = true
-                }
-            }
-            if (use_access_transformer.toBoolean()) {
-                attribute_map['FMLAT'] = access_transformer_locations
-            }
-            attributes(attribute_map)
+            // Only ModType is left: it has no equivalent in the jar section, and the loader still reads it to decide
+            // whether a jar belongs to this loader at all. Everything else moved to the metadata below.
+            attributes('ModType': 'CRL')
         }
     }
     finalizedBy(tasks.named(remapTaskName).get())
+}
+
+// `contain` stays the author's surface, but the bundling itself belongs to Unimined: it resolves each declaration
+// against the classpath, copies it to META-INF/libraries and states it in the jar section. Marking the same
+// dependencies is all this needs - an independent resolution would be free to pick a different version than the one
+// the project compiles against.
+afterEvaluate {
+    configurations.contain.dependencies.each { project.contained(it) }
 }
 
 
