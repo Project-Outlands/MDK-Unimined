@@ -31,7 +31,8 @@ edit('build.gradle', [
      '        runs.all {\n            systemProperty("crl.dev.mixin", "${mod_id}.mixin.json")\n            args += [\'--username\', minecraft_username]'),
     ('    remap(tasks.named(jarTaskName).get())',
      '    remap(tasks.named(jarTaskName).get()) {\n        mixinRemap {\n            enableBaseMixin()\n            enableMixinExtra()\n        }\n    }'),
-    ('            attribute_map[\'ModType\'] = "CRL"',
-     '            attribute_map[\'ModType\'] = "CRL"\n            attribute_map[\'MixinConfigs\'] = "${mod_id}.mixin.json"'),
+    # Mixin reads its config list from the manifest - its own mechanism, with no equivalent in the mcmod.info jar section
+    ("jar {\n    archiveClassifier = 'dev'\n    duplicatesStrategy = DuplicatesStrategy.EXCLUDE\n",
+     "jar {\n    archiveClassifier = 'dev'\n    duplicatesStrategy = DuplicatesStrategy.EXCLUDE\n    // Mixin reads its config list from the manifest, which is\n    // Mixin's own mechanism and has no equivalent in the mcmod.info jar section.\n    manifest {\n        attributes('MixinConfigs': \"${mod_id}.mixin.json\")\n    }\n"),
 ])
 PY
