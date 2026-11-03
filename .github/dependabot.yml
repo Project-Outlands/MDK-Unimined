@@ -1,0 +1,34 @@
+version: 2
+
+# Keeps the action versions in the workflows current. Two directories on purpose: the repository's own workflows, and
+# the template that every kit ships (`stacks/unimined/.github/workflows/build.yml`), which users copy into their
+# project and then own -- a bump there has to land in the template, not in their tree.
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ci
+    groups:
+      # One PR per week rather than one per action: the bumps are independent but the review is not.
+      actions:
+        patterns: ['*']
+
+  - package-ecosystem: github-actions
+    directory: /stacks/unimined
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns: ['*']
