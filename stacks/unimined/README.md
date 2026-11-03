@@ -52,6 +52,11 @@ You can find its template under `src/main/java-templates`.
 3. Use `IMixinConfigPlugin` to control if certain mixin should be enabled.
 4. mixin classes will be passed to the plugin only when target class is loading, so you don't need to call `Loader.isModLoaded()`
 5. Don't worry about refmap, Unimined will handle it automatically. You can still `disableRefmap()` manually though
+6. Declare the config in the `jar` section of `src/main/resource-templates/mcmod.info` - not with the `MixinConfigs` manifest
+   attribute, which cannot say which side a config belongs to (`{"config": "mymod.client.mixins.json", "side": "client"}`).
+   The mixin kit already does this for its one config.
+7. A development run needs `-Doutlands.dev.mixin=<config>`, because a mod there is a directory: neither a manifest nor a
+   `jar` section is read for one. The mixin kit sets it on every run.
 
 ### Access Transformer
 You **MUST** write AT file in MCP name. It will be remapped back to SRG name in artifact jar.

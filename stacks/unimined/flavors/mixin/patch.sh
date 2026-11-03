@@ -27,12 +27,20 @@ edit('gradle.properties', [
 ])
 
 edit('build.gradle', [
+    # `outlands.dev.mixin` is the name the loader reads (ModDiscoverer.discoverMixinMods). A development run needs it
+    # because the mod there is a directory: neither a manifest nor a jar section is read for one, so the declared config
+    # is the only way in.
     ('        runs.all {\n            args += [\'--username\', minecraft_username]',
-     '        runs.all {\n            systemProperty("crl.dev.mixin", "${mod_id}.mixin.json")\n            args += [\'--username\', minecraft_username]'),
+     '        runs.all {\n            systemProperty("outlands.dev.mixin", "${mod_id}.mixin.json")\n            args += [\'--username\', minecraft_username]'),
     ('    remap(tasks.named(jarTaskName).get())',
      '    remap(tasks.named(jarTaskName).get()) {\n        mixinRemap {\n            enableBaseMixin()\n            enableMixinExtra()\n        }\n    }'),
-    # Mixin reads its config list from the manifest - its own mechanism, with no equivalent in the mcmod.info jar section
-    ("jar {\n    archiveClassifier = 'dev'\n    duplicatesStrategy = DuplicatesStrategy.EXCLUDE\n",
-     "jar {\n    archiveClassifier = 'dev'\n    duplicatesStrategy = DuplicatesStrategy.EXCLUDE\n    // Mixin reads its config list from the manifest, which is\n    // Mixin's own mechanism and has no equivalent in the mcmod.info jar section.\n    manifest {\n        attributes('MixinConfigs': \"${mod_id}.mixin.json\")\n    }\n"),
+])
+
+# The mixin configurations are declared in the mcmod.info jar section, which the loader prefers over the `MixinConfigs`
+# manifest attribute - the section can also say which side a configuration belongs to, which is the fact a
+# comma-separated manifest string had no room for.
+edit('src/main/resource-templates/mcmod.info', [
+    ('\t}]\n}\n',
+     '\t}],\n\t"jar": {\n\t\t"mixins": [\n\t\t\t{"config": "{{ mod_id }}.mixin.json"}\n\t\t]\n\t}\n}\n'),
 ])
 PY
