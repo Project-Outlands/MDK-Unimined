@@ -76,7 +76,7 @@ unimined.minecraft {
                 at(*accessTransformerLocations)
             }
         }
-        loader "2026.11.03"
+        loader "2026.11.03-2"
         runs.all {
             args += ['--username', minecraft_username]
             def extraArgs = extra_jvm_args
