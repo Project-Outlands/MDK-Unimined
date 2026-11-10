@@ -1,0 +1,140 @@
+name: Update loader
+
+run-name: Update MDK to Outlands ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.event.client_payload.version }}
+
+on:
+  repository_dispatch:
+    types: [outlands-released]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Outlands CalVer to publish (YYYY.MM.DD or YYYY.MM.DD-N)'
+        required: true
+        type: string
+
+permissions:
+  actions: write
+  contents: write
+
+concurrency:
+  group: update-loader
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Pin, verify and tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Resolve and validate the release
+        id: resolve
+        env:
+          REQUESTED: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.event.client_payload.version }}
+          METADATA: https://maven.outlands.top/releases/top/outlands/outlands/maven-metadata.xml
+        run: |
+          set -euo pipefail
+          VERSION="$REQUESTED"
+          if [[ ! "$VERSION" =~ ^[0-9]{4}\.[0-9]{2}\.[0-9]{2}(-[0-9]+)?$ ]]; then
+            echo "::error::'$VERSION' is not an Outlands CalVer version (YYYY.MM.DD or YYYY.MM.DD-N)"
+            exit 1
+          fi
+          if [[ "$VERSION" =~ -([0-9]+)$ ]] && [ "${BASH_REMATCH[1]}" -lt 2 ]; then
+            echo "::error::'$VERSION': the first release of a day has no suffix, same-day releases start at -2"
+            exit 1
+          fi
+
+          published=false
+          for attempt in {1..30}; do
+            if xml=$(curl -fsS --max-time 30 --retry 2 --retry-delay 2 "$METADATA") && \
+              printf '%s' "$xml" | grep -qF "<version>$VERSION</version>"; then
+              published=true
+              break
+            fi
+            if [ "$attempt" -lt 30 ]; then
+              echo "Waiting for Outlands $VERSION on Maven (attempt $attempt/30)"
+              sleep 10
+            fi
+          done
+          if [ "$published" != true ]; then
+            echo "::error::Outlands $VERSION did not appear in $METADATA"
+            exit 1
+          fi
+
+          pinned=$(sed -n 's/^ *loader "\(.*\)"$/\1/p' stacks/unimined/build.gradle | head -1)
+          if [ -z "$pinned" ]; then
+            echo "::error::could not read the loader pin"
+            exit 1
+          fi
+          if [ "$pinned" != "$VERSION" ] && \
+            [ "$(printf '%s\n' "$pinned" "$VERSION" | sort -V | head -1)" = "$VERSION" ]; then
+            echo "::error::refusing to downgrade the loader pin from $pinned to $VERSION"
+            exit 1
+          fi
+
+          tag="mdk/$VERSION"
+          remote_tag=$(git ls-remote --tags --refs origin "refs/tags/$tag")
+          if [ -n "$remote_tag" ]; then
+            if [ "$pinned" != "$VERSION" ]; then
+              echo "::error::$tag already exists, but main pins $pinned"
+              exit 1
+            fi
+            echo "Outlands $VERSION is already pinned and tagged; skipping the pin update"
+            echo "update=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "update=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Update the loader pin
+        if: steps.resolve.outputs.update == 'true'
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          sed -i 's/^\( *\)loader ".*"$/\1loader "'"$VERSION"'"/' stacks/unimined/build.gradle
+          grep -q "loader \"$VERSION\"" stacks/unimined/build.gradle
+
+      - name: Build every kit before publishing the pin
+        if: steps.resolve.outputs.update == 'true'
+        run: |
+          set -euo pipefail
+          ./tool/package-flavor.sh java --build
+          ./tool/package-flavor.sh java-mixin --build
+
+      - name: Commit the pin and tag the MDK release
+        if: steps.resolve.outputs.update == 'true'
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+          TAG: ${{ steps.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if ! git diff --quiet -- stacks/unimined/build.gradle; then
+            git add stacks/unimined/build.gradle
+            git commit -m "chore: update loader to $VERSION"
+            git push origin HEAD:main
+          fi
+          git tag -a "$TAG" -m "MDK for Outlands $VERSION"
+          git push origin "refs/tags/$TAG"
+
+      - name: Dispatch the MDK release workflow
+        env:
+          TAG: ${{ steps.resolve.outputs.tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh workflow run mdk.yml --ref "$TAG"

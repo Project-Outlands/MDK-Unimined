@@ -42,6 +42,37 @@ instead of shipping a broken kit.
 
 Releases are cut by pushing a `mdk/<version>` tag; CI assembles every flavor, builds it, and attaches the zips.
 
+### Automatic loader releases
+
+`.github/workflows/update-loader.yml` accepts an `outlands-released` repository dispatch. It waits for the version to
+appear on Maven, builds every kit, commits the new loader pin to `main`, and pushes the corresponding `mdk/<version>`
+tag. It then explicitly dispatches the existing MDK workflow to build and publish the release archives: a tag pushed
+with the receiving workflow's `GITHUB_TOKEN` would not start another workflow by itself. A repeated dispatch is
+harmless, and a dispatch for an older loader is rejected instead of downgrading the pin. The nightly compat build
+remains the fallback if a dispatch is missed.
+
+Add this step at the end of `Release` in the Outlands repository's `.github/workflows/Release.yml`, after its `Verify`
+step, so the MDK is notified only after both Maven and the GitHub release are ready:
+
+```yaml
+      - name: Trigger MDK update
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          GH_TOKEN: ${{ secrets.MDK_DISPATCH_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh api repos/Project-Outlands/MDK-Unimined/dispatches \
+            -X POST \
+            -f event_type=outlands-released \
+            -f "client_payload[version]=$VERSION"
+```
+
+Create `MDK_DISPATCH_TOKEN` as an Actions secret **in the Outlands repository**. A fine-grained personal access token
+with `Contents: Read and write` on only `Project-Outlands/MDK-Unimined` is sufficient; the source repository's
+`GITHUB_TOKEN` cannot dispatch another repository. The receiving workflow must be on this repository's default branch,
+and the Actions bot must be allowed to push to `main`. It can also be run manually with a loader CalVer to recover a
+missed release.
+
 ## Version policy
 
 A kit is not versioned with the loader. `mdk.properties` inside each zip records `mdk.version`, `mdk.flavor`,
