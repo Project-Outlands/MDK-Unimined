@@ -40,7 +40,15 @@ instead of shipping a broken kit.
 ./tool/package-flavor.sh java-mixin --build      # -> build/zips/mdk-java-mixin.zip
 ```
 
-Releases are cut by pushing a `mdk/<version>` tag; CI assembles every flavor, builds it, and attaches the zips.
+Releases are cut by pushing a `mdk/<version>` tag; CI assembles every flavor, builds it, and attaches the zips. The
+tag names the loader release the kit was cut for, so there is one kit release per loader release and no kit version of
+its own.
+
+A loader release does not need to be followed by hand: Outlands' `Release.yml` dispatches `outlands-release` at this
+repository once its release is verified, and `.github/workflows/loader-bump.yml` bumps the pin in
+`stacks/unimined/build.gradle`, builds the `java` flavor against the new loader as a gate, and then starts `MDK` with
+`version: <loader version>` to package and release. `workflow_dispatch` on `loader-bump.yml` replays a version by
+hand; both paths do nothing once `mdk/<version>` exists.
 
 ## Version policy
 
