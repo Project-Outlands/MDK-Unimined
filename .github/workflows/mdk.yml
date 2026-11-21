@@ -6,12 +6,19 @@ on:
     tags: ['mdk/*']
   workflow_dispatch:
     inputs:
+      # Set by .github/workflows/loader-bump.yml, or by hand to re-release a kit. The tag names the loader release the
+      # kit is cut for, so a kit release only exists together with one: there is no kit version of its own.
+      version:
+        description: 'Outlands version to release a kit for (tag mdk/<version>); empty only builds'
+        default: ''
       flavors:
         description: 'Flavors to build (space separated)'
         default: 'java java-mixin'
 
 concurrency:
-  group: mdk-${{ github.ref }}
+  # A dispatched release and a push build on main both run on 'main' and must not cancel each other, so the requested
+  # version joins the group when there is one.
+  group: mdk-${{ inputs.version || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -25,6 +32,21 @@ jobs:
         flavor: [java, java-mixin]
     steps:
       - uses: actions/checkout@v7
+
+      - name: The tree has to pin the version being released
+        # A dispatched release carries its version in an input, the pin in the tree is what actually gets compiled. They
+        # disagree only if someone dispatched a version that was never bumped, and that would ship a kit labelled with
+        # a loader it does not use.
+        if: github.event_name == 'workflow_dispatch' && inputs.version != ''
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          pinned=$(sed -n 's/^ *loader "\(.*\)"$/\1/p' stacks/unimined/build.gradle | head -1)
+          if [ "$pinned" != "$VERSION" ]; then
+            echo "::error::stacks/unimined/build.gradle pins '$pinned', not '$VERSION'; run the Loader bump workflow first"
+            exit 1
+          fi
 
       - uses: actions/setup-java@v6
         with:
@@ -43,11 +65,16 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: startsWith(github.ref, 'refs/tags/mdk/')
+    # A tag push, or a dispatch that named a version (loader-bump.yml, or a hand re-release).
+    if: startsWith(github.ref, 'refs/tags/mdk/') || (github.event_name == 'workflow_dispatch' && inputs.version != '')
     needs: package
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      # The tag the kit release names: 'mdk/<loader version>'. A dispatched run has no tag ref of its own, so the input
+      # supplies it; a run started by the tag itself already has it in github.ref_name.
+      RELEASE_TAG: ${{ (github.event_name == 'workflow_dispatch' && inputs.version != '') && format('mdk/{0}', inputs.version) || github.ref_name }}
     steps:
       - uses: actions/download-artifact@v8
         with:
@@ -57,8 +84,10 @@ jobs:
       - uses: ncipollo/release-action@v1
         with:
           artifacts: 'zips/*.zip'
-          tag: ${{ github.ref_name }}
-          name: ${{ github.ref_name }}
+          tag: ${{ env.RELEASE_TAG }}
+          name: ${{ env.RELEASE_TAG }}
+          # Only read when the tag does not exist yet: loader-bump.yml already pushed it before dispatching.
+          commit: ${{ github.sha }}
           makeLatest: true
           allowUpdates: true
           token: ${{ secrets.GITHUB_TOKEN }}
